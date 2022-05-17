@@ -186,8 +186,8 @@ void setGicpParam(){
     gicp->setNumThreads(4);
     // gicp->setTransformationEpsilon(1e-10);
     // gicp->setMaximumIterations(50);
-    gicp->setMaxCorrespondenceDistance(3);
-    gicp->setCorrespondenceRandomness(40);
+    gicp->setMaxCorrespondenceDistance(2);
+    // gicp->setCorrespondenceRandomness(40);
 }
 // lxj
 // 去除地面点
@@ -330,9 +330,13 @@ void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr &laserOdometry)
 
 void process()
 {
+
+	// pcl::PointCloud<PointType>::Ptr laserCloudCornerLast(new pcl::PointCloud<PointType>());
+	// pcl::PointCloud<PointType>::Ptr laserCloudRawLast(new pcl::PointCloud<PointType>());
+	// pcl::PointCloud<PointType>::Ptr laserCloudSurfLast(new pcl::PointCloud<PointType>());
 	while(1)
 	{
-		while (!cornerLastBuf.empty() && !surfLastBuf.empty() &&
+		while (!rawLastBuf.empty() && !cornerLastBuf.empty() && !surfLastBuf.empty() &&
 			!fullResBuf.empty() && !odometryBuf.empty())
 		{
 			mBuf.lock();
@@ -343,7 +347,13 @@ void process()
 				mBuf.unlock();
 				break;
 			}
-
+			while (!rawLastBuf.empty() && rawLastBuf.front()->header.stamp.toSec() < cornerLastBuf.front()->header.stamp.toSec())
+				rawLastBuf.pop();
+			if (rawLastBuf.empty())
+			{
+				mBuf.unlock();
+				break;
+			}
 			while (!surfLastBuf.empty() && surfLastBuf.front()->header.stamp.toSec() < cornerLastBuf.front()->header.stamp.toSec())
 				surfLastBuf.pop();
 			if (surfLastBuf.empty())
@@ -360,16 +370,18 @@ void process()
 				break;
 			}
 
+			timeLaserCloudRawLast = rawLastBuf.front()->header.stamp.toSec();
 			timeLaserCloudCornerLast = cornerLastBuf.front()->header.stamp.toSec();
 			timeLaserCloudSurfLast = surfLastBuf.front()->header.stamp.toSec();
 			timeLaserCloudFullRes = fullResBuf.front()->header.stamp.toSec();
 			timeLaserOdometry = odometryBuf.front()->header.stamp.toSec();
 
-			if (timeLaserCloudCornerLast != timeLaserOdometry ||
+			if (timeLaserCloudRawLast != timeLaserOdometry ||
+				timeLaserCloudCornerLast != timeLaserOdometry ||
 				timeLaserCloudSurfLast != timeLaserOdometry ||
 				timeLaserCloudFullRes != timeLaserOdometry)
 			{
-				printf("time corner %f surf %f full %f odom %f \n", timeLaserCloudCornerLast, timeLaserCloudSurfLast, timeLaserCloudFullRes, timeLaserOdometry);
+				printf("time raw %f corner %f surf %f full %f odom %f \n",timeLaserCloudRawLast, timeLaserCloudCornerLast, timeLaserCloudSurfLast, timeLaserCloudFullRes, timeLaserOdometry);
 				printf("unsync messeage!");
 				mBuf.unlock();
 				break;
@@ -446,10 +458,13 @@ void process()
 							laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 								laserCloudSurfArray[i - 1 + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k];
 						}
+						laserCloudRawArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
+							laserCloudCubeRawPointer;
 						laserCloudCornerArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeCornerPointer;
 						laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeSurfPointer;
+						laserCloudCubeRawPointer->clear();
 						laserCloudCubeCornerPointer->clear();
 						laserCloudCubeSurfPointer->clear();
 					}
@@ -481,10 +496,13 @@ void process()
 							laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 								laserCloudSurfArray[i + 1 + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k];
 						}
+						laserCloudRawArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
+							laserCloudCubeRawPointer;
 						laserCloudCornerArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeCornerPointer;
 						laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeSurfPointer;
+						laserCloudCubeRawPointer->clear();
 						laserCloudCubeCornerPointer->clear();
 						laserCloudCubeSurfPointer->clear();
 					}
@@ -516,10 +534,13 @@ void process()
 							laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 								laserCloudSurfArray[i + laserCloudWidth * (j - 1) + laserCloudWidth * laserCloudHeight * k];
 						}
+						laserCloudRawArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
+							laserCloudCubeRawPointer;
 						laserCloudCornerArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeCornerPointer;
 						laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeSurfPointer;
+						laserCloudCubeRawPointer->clear();
 						laserCloudCubeCornerPointer->clear();
 						laserCloudCubeSurfPointer->clear();
 					}
@@ -551,10 +572,13 @@ void process()
 							laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 								laserCloudSurfArray[i + laserCloudWidth * (j + 1) + laserCloudWidth * laserCloudHeight * k];
 						}
+						laserCloudRawArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
+							laserCloudCubeRawPointer;
 						laserCloudCornerArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeCornerPointer;
 						laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeSurfPointer;
+						laserCloudCubeRawPointer->clear();
 						laserCloudCubeCornerPointer->clear();
 						laserCloudCubeSurfPointer->clear();
 					}
@@ -586,10 +610,13 @@ void process()
 							laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 								laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * (k - 1)];
 						}
+						laserCloudRawArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
+							laserCloudCubeRawPointer;
 						laserCloudCornerArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeCornerPointer;
 						laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeSurfPointer;
+						laserCloudCubeRawPointer->clear();
 						laserCloudCubeCornerPointer->clear();
 						laserCloudCubeSurfPointer->clear();
 					}
@@ -621,10 +648,13 @@ void process()
 							laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 								laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * (k + 1)];
 						}
+						laserCloudRawArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
+							laserCloudCubeRawPointer;
 						laserCloudCornerArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeCornerPointer;
 						laserCloudSurfArray[i + laserCloudWidth * j + laserCloudWidth * laserCloudHeight * k] =
 							laserCloudCubeSurfPointer;
+						laserCloudCubeRawPointer->clear();
 						laserCloudCubeCornerPointer->clear();
 						laserCloudCubeSurfPointer->clear();
 					}
@@ -657,15 +687,28 @@ void process()
 			}
 
 			laserCloudCornerFromMap->clear();
+			laserCloudRawFromMap->clear();
 			laserCloudSurfFromMap->clear();
+			std::cout << "laserCloudValidNum等于" << laserCloudValidNum << std::endl;
 			for (int i = 0; i < laserCloudValidNum; i++)
 			{
 				*laserCloudCornerFromMap += *laserCloudCornerArray[laserCloudValidInd[i]];
+				*laserCloudRawFromMap += *laserCloudRawArray[laserCloudValidInd[i]];
 				*laserCloudSurfFromMap += *laserCloudSurfArray[laserCloudValidInd[i]];
 			}
+		
+
+			int laserCloudRawFromMapNum = laserCloudRawFromMap->points.size();
 			int laserCloudCornerFromMapNum = laserCloudCornerFromMap->points.size();
 			int laserCloudSurfFromMapNum = laserCloudSurfFromMap->points.size();
 
+
+			pcl::PointCloud<PointType>::Ptr laserCloudRawStack(new pcl::PointCloud<PointType>());
+			downSizeFilterRaw.setInputCloud(laserCloudRawLast);
+			downSizeFilterRaw.filter(*laserCloudRawStack);
+			int laserCloudRawStackNum = laserCloudRawLast->points.size();
+			std::cout << "第一次laserCloudRawStackNum等于" << laserCloudRawStackNum << std::endl;
+			std::cout << "第一次laserCloudRawFromMapNum等于" << laserCloudRawFromMapNum << std::endl;
 
 			pcl::PointCloud<PointType>::Ptr laserCloudCornerStack(new pcl::PointCloud<PointType>());
 			downSizeFilterCorner.setInputCloud(laserCloudCornerLast);
@@ -678,11 +721,20 @@ void process()
 			int laserCloudSurfStackNum = laserCloudSurfStack->points.size();
 
 			printf("map prepare time %f ms\n", t_shift.toc());
-			printf("map corner num %d  surf num %d \n", laserCloudCornerFromMapNum, laserCloudSurfFromMapNum);
+			printf("map raw num %d  corner num %d  surf num %d \n",laserCloudRawFromMapNum,  laserCloudCornerFromMapNum, laserCloudSurfFromMapNum);
 			if (laserCloudCornerFromMapNum > 10 && laserCloudSurfFromMapNum > 50)
 			{
 				TicToc t_opt;
-
+				// if(count>650&&count%5==0){
+				// pcl::io::savePCDFileASCII("/home/lxj/aloam_back/src/A-LOAM/pcd/rawmap_"+std::to_string(count)+".pcd", *laserCloudRawFromMap);
+				// pcl::io::savePCDFileASCII("/home/lxj/aloam_back/src/A-LOAM/pcd/rawstack_"+std::to_string(count)+".pcd", *laserCloudRawLast);
+				// }
+				// if(count<4){
+				// 	pcl::io::savePCDFileASCII("/home/lxj/aloam_back/src/A-LOAM/pcd/rawfmap_"+std::to_string(count)+".pcd", *laserCloudRawFromMap);
+				// 	pcl::io::savePCDFileASCII("/home/lxj/aloam_back/src/A-LOAM/pcd/rawfstack_"+std::to_string(count)+".pcd", *laserCloudRawStack);
+				// 	// pcl::io::savePCDFileASCII("/home/lxj/aloam_back/src/A-LOAM/pcd/cube33330cmap_"+std::to_string(count)+".pcd", *laserCloudCornerFromMap);
+				// 	// pcl::io::savePCDFileASCII("/home/lxj/aloam_back/src/A-LOAM/pcd/cube33330cstack_"+std::to_string(count)+".pcd", *laserCloudCornerStack);
+				// }
 				std::cout << "\tcount= " << count << std::endl;
 				count++;
 				TicToc t_data;
@@ -690,16 +742,16 @@ void process()
 				guess(0, 3) = t_w_curr[0];
 				guess(1, 3) = t_w_curr[1];
 				guess(2, 3) = t_w_curr[2];
-				guess.block<3, 3>(0, 0) = q_w_curr.toRotationMatrix();
+				guess.block<3, 3>(0, 0) = q_w_curr.normalized().toRotationMatrix();
 				// std::cout << "guess= " << std::endl;
 				// print4x4Matrix(guess.cast<float>());
 
 				// detectObjectsOnCloud(laserCloudSurfFromMap,laserCloudSurfFromMap);
 				// detectObjectsOnCloud(laserCloudCornerFromMap,laserCloudCornerFromMap);
-				cloudTarget = *laserCloudSurfFromMap;
-				cloudSource = *laserCloudSurfStack;
-				// cloudTarget = *laserRawCloudFromMap;
-				// cloudSource = *laserRawCloudStack;
+				// cloudTarget = *laserCloudSurfFromMap;
+				// cloudSource = *laserCloudSurfStack;
+				cloudTarget = *laserCloudRawFromMap;
+				cloudSource = *laserCloudRawStack;
                 icpCloudSource = cloudSource.makeShared();
                 icpCloudTarget = cloudTarget.makeShared();
 				gicp->setInputSource(icpCloudSource);
@@ -733,6 +785,32 @@ void process()
 			transformUpdate();
 
 			TicToc t_add;
+			std::cout << "第二次laserCloudRawStackNum等于" << laserCloudRawStackNum << std::endl;
+			for (int i = 0; i < laserCloudRawStackNum; i++)
+			{
+				pointAssociateToMap(&laserCloudRawStack->points[i], &pointSel);
+
+				int cubeI = int((pointSel.x + 25.0) / 50.0) + laserCloudCenWidth;
+				int cubeJ = int((pointSel.y + 25.0) / 50.0) + laserCloudCenHeight;
+				int cubeK = int((pointSel.z + 25.0) / 50.0) + laserCloudCenDepth;
+
+				if (pointSel.x + 25.0 < 0)
+					cubeI--;
+				if (pointSel.y + 25.0 < 0)
+					cubeJ--;
+				if (pointSel.z + 25.0 < 0)
+					cubeK--;
+
+				if (cubeI >= 0 && cubeI < laserCloudWidth &&
+					cubeJ >= 0 && cubeJ < laserCloudHeight &&
+					cubeK >= 0 && cubeK < laserCloudDepth)
+				{
+					int cubeInd = cubeI + laserCloudWidth * cubeJ + laserCloudWidth * laserCloudHeight * cubeK;
+					laserCloudRawArray[cubeInd]->push_back(pointSel);
+				}
+			}
+
+			std::cout << "laserCloudCornerStackNum等于" << laserCloudCornerStackNum << std::endl;
 			for (int i = 0; i < laserCloudCornerStackNum; i++)
 			{
 				pointAssociateToMap(&laserCloudCornerStack->points[i], &pointSel);
@@ -757,6 +835,7 @@ void process()
 				}
 			}
 
+			std::cout << "laserCloudSurfStackNum等于" << laserCloudSurfStackNum << std::endl;
 			for (int i = 0; i < laserCloudSurfStackNum; i++)
 			{
 				pointAssociateToMap(&laserCloudSurfStack->points[i], &pointSel);
@@ -788,6 +867,11 @@ void process()
 			{
 				int ind = laserCloudValidInd[i];
 
+				pcl::PointCloud<PointType>::Ptr tmpRaw(new pcl::PointCloud<PointType>());
+				downSizeFilterRaw.setInputCloud(laserCloudRawArray[ind]);
+				downSizeFilterRaw.filter(*tmpRaw);
+				laserCloudRawArray[ind] = tmpRaw;
+
 				pcl::PointCloud<PointType>::Ptr tmpCorner(new pcl::PointCloud<PointType>());
 				downSizeFilterCorner.setInputCloud(laserCloudCornerArray[ind]);
 				downSizeFilterCorner.filter(*tmpCorner);
@@ -808,8 +892,9 @@ void process()
 				for (int i = 0; i < laserCloudSurroundNum; i++)
 				{
 					int ind = laserCloudSurroundInd[i];
-					*laserCloudSurround += *laserCloudCornerArray[ind];
-					*laserCloudSurround += *laserCloudSurfArray[ind];
+					*laserCloudSurround += *laserCloudRawArray[ind];
+					// *laserCloudSurround += *laserCloudCornerArray[ind];
+					// *laserCloudSurround += *laserCloudSurfArray[ind];
 				}
 
 				sensor_msgs::PointCloud2 laserCloudSurround3;
@@ -824,8 +909,9 @@ void process()
 				pcl::PointCloud<PointType> laserCloudMap;
 				for (int i = 0; i < 4851; i++)
 				{
-					laserCloudMap += *laserCloudCornerArray[i];
-					laserCloudMap += *laserCloudSurfArray[i];
+					laserCloudMap += *laserCloudRawArray[i];
+					// laserCloudMap += *laserCloudCornerArray[i];
+					// laserCloudMap += *laserCloudSurfArray[i];
 				}
 				sensor_msgs::PointCloud2 laserCloudMsg;
 				pcl::toROSMsg(laserCloudMap, laserCloudMsg);
@@ -897,16 +983,21 @@ int main(int argc, char **argv)
 	setlocale(LC_ALL, "");
 	ros::init(argc, argv, "laserMapping");
 	ros::NodeHandle nh;
+	float rawRes = 0;
 	float lineRes = 0;
 	float planeRes = 0;
 
+	nh.param<float>("mapping_raw_resolution", rawRes, 0.4);
 	nh.param<float>("mapping_line_resolution", lineRes, 0.4);
 	nh.param<float>("mapping_plane_resolution", planeRes, 0.8);
-	printf("line resolution %f plane resolution %f \n", lineRes, planeRes);
+	printf("raw resolution %f line resolution %f plane resolution %f \n", rawRes, lineRes, planeRes);
+	downSizeFilterRaw.setLeafSize(rawRes, rawRes,rawRes);
 	downSizeFilterCorner.setLeafSize(lineRes, lineRes,lineRes);
 	downSizeFilterSurf.setLeafSize(planeRes, planeRes, planeRes);
 
 	setGicpParam();
+
+	ros::Subscriber subLaserCloudRawLast = nh.subscribe<sensor_msgs::PointCloud2>("/laser_cloud_raw_last", 100, laserCloudRawLastHandler);
 
 	ros::Subscriber subLaserCloudCornerLast = nh.subscribe<sensor_msgs::PointCloud2>("/laser_cloud_corner_last", 100, laserCloudCornerLastHandler);
 
@@ -930,6 +1021,7 @@ int main(int argc, char **argv)
 
 	for (int i = 0; i < laserCloudNum; i++)
 	{
+		laserCloudRawArray[i].reset(new pcl::PointCloud<PointType>());
 		laserCloudCornerArray[i].reset(new pcl::PointCloud<PointType>());
 		laserCloudSurfArray[i].reset(new pcl::PointCloud<PointType>());
 	}
